@@ -2,8 +2,12 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <fstream>
+#include <string.h>
 #include <sstream>
 #include <bitset>
+#include <cmath>
+
 using namespace std;
 
 class Record {
@@ -104,61 +108,171 @@ private:
         //based on the binary result, determine which block to go to, j represents the block number
         for(int k = 0; k < n; k++){
             if(blockDirectory.at(k) == binResult){
-                j = blockDirectory.at(k);
+                j = k;
+                // cout << "I go in page: " << j << endl;
             }
         }
 
         //open the file and seek to the desired block
-        ifstream indexFile;
-        indexFile.open(fName);
-        indexFile.seekg(j * BLOCK_SIZE);
-
-        //declare the c style buffer to read in the block
-        char* pageDataBuffer = new char[BLOCK_SIZE + 1];
-        indexFile.read(pageDataBuffer, BLOCK_SIZE);
-        pageDataBuffer[BLOCK_SIZE] = '\0'
-
-        //set the buffer to a normal string and delete the c string
-        string stringBuffer = pageDataBuffer;
-        delete[] pageDataBuffer;
-
-        //set the buffer to a stringstream and delete the normal string
-        stringstream myStrStrm;
-        myStrStrm.str(stringBuffer);
-        stringBuffer.clear();
-
+       
         //for processing small bits of data;
         string inputBuffer;
 
+        int currReadLocation = j*BLOCK_SIZE;
 
-        //determine how much space is currently available in the determined block, go to the slot dir and add up the offsets
-        getline(myStrStrm, inputBuffer, '[');
-        int sizeOfSlotDir = BLOCK_SIZE - tellg(myStrStrm);
-        getline(myStrStrm, inputBuffer, '*');
-        int lastOff = stoi(inputBuffer);
-        getline(myStrStrm, inputBuffer, ',')
-        getline(myStrStrm, inputBuffer, '*');
-        int lastLen = stoi(inputBuffer);
-        
-        //if space, insert
-        if((lastOff + lastLen + sizeOfSlotDir + newRecordLength) <= BLOCK_SIZE){
-            //put the record in the given block, then push it back onto the file
+        cout << "INSERT FUNCTION" << endl;
+        while(true)
+        {
+            cout << "WHILE LOOP ENTERED" << endl;
+            ifstream inFile;
+            inFile.open(fName);
+            inFile.seekg(currReadLocation);
 
-            myStrStrm.clear();
+            //declare the c style buffer to read in the block
+            char* pageDataBuffer = new char[BLOCK_SIZE + 1];
+            inFile.read(pageDataBuffer, BLOCK_SIZE);
+            pageDataBuffer[BLOCK_SIZE] = '\0';
 
-            
-        }
-        //if no space, insert into overflow
-        else{
-            //create an overflow page and store it there
+            inFile.close();
 
-            //update the pointer in the current page, and write it to the file
+            //set the buffer to a normal string and delete the c string
+            string stringBuffer = pageDataBuffer;
+            delete[] pageDataBuffer;
 
-            //create a buffer to write the new page
+            //set the buffer to a stringstream and delete the normal string
+            stringstream myStrStrm;
+            myStrStrm.str(stringBuffer);
+            stringBuffer.clear();
 
-            //seek to the correct position in the file
+            int slotDirStart = BLOCK_SIZE - 12;
+            int sizeOfSlotDir = 0;
+            int lastOff = 0;
+            int lastLen = 0;
 
-            //write it and clear the buffer
+            //determine how much space is currently available in the determined block, go to the slot dir and add up the offsets
+            if (getline(myStrStrm, inputBuffer, '[')){
+                if(myStrStrm.tellg() != -1){
+                    cout << "SLOT DIRECTORY" << endl;
+                    slotDirStart = myStrStrm.tellg();
+                    slotDirStart--;
+                    sizeOfSlotDir = BLOCK_SIZE - slotDirStart;
+
+                    getline(myStrStrm, inputBuffer, '*');
+                    //cout << inputBuffer << endl;
+                    lastOff = stoi(inputBuffer);
+
+                    getline(myStrStrm, inputBuffer, ',');
+                    getline(myStrStrm, inputBuffer, '*');
+                    //cout << inputBuffer << endl;
+                    lastLen = stoi(inputBuffer);
+                    
+                }
+            }
+
+            //if space, insert
+            if((lastOff + lastLen + sizeOfSlotDir + newRecordLength) <= BLOCK_SIZE){
+                //put the record in the given block, then push it back onto the file
+                cout << "SPACE TO INSERT" << endl;
+                //turn the stringstream back into a c string
+
+                cout << "1" << endl;
+                stringBuffer = myStrStrm.str();
+                myStrStrm.clear();
+                char* pageDataBuffer = new char[BLOCK_SIZE + 1];
+                pageDataBuffer[BLOCK_SIZE] = '\0';
+                strcpy(pageDataBuffer, (stringBuffer).c_str());
+                stringBuffer.clear();
+
+                cout << "2" << endl;
+                //build record
+                string newRecord = to_string(record.id) + '$' + record.name + '$' + record.bio + '$' + to_string(record.manager_id);
+                string newSlot = "[*****,****]";
+                //build slot
+                newSlot.replace(1, to_string(lastOff + lastLen).length(), to_string(lastOff + lastLen));
+                newSlot.replace(7, to_string(newRecord.length()).length(), to_string(newRecord.length()));
+                //cout << newSlot << endl;
+
+                //put the new record in
+                replaceString(newRecord, &pageDataBuffer, (lastOff + lastLen));
+                //put the new slot in
+                replaceString(newSlot, &pageDataBuffer, (slotDirStart - 12));
+
+                cout << "3" << endl;
+                //send the data into the file
+                ofstream outFile;
+                outFile.open("EmployeeIndex.dat", ios::in | ios::ate);
+                outFile.seekp(currReadLocation);
+                outFile.write(pageDataBuffer, 4096);
+                outFile.close();
+
+                cout << "4" << endl;
+                delete[] pageDataBuffer;
+
+                break;
+
+            }
+            //if no space, insert into overflow
+            else{
+                cout << "NO SPACE TO INSERT" << endl;
+                //check if we currently already have a valid file pointer
+                myStrStrm.seekg(BLOCK_SIZE-11);
+                //getline(myStrStrm, inputBuffer, '{');
+                getline(myStrStrm, inputBuffer, '}');
+
+                int overflowPointer = stoi(inputBuffer);
+
+                //No active pointer on this page so the next one needs to be created
+                if(overflowPointer == 0)
+                {
+                    cout << "OVERFLOW IS 0" << endl;
+                    //create an overflow page and store it there
+                    stringBuffer = myStrStrm.str();
+                    myStrStrm.clear();
+                    
+                    //create a buffer to write the new page
+                    char* pageDataBuffer = new char[BLOCK_SIZE + 1];
+                    pageDataBuffer[BLOCK_SIZE] = '\0';
+                    strcpy(pageDataBuffer, (stringBuffer).c_str());
+                    stringBuffer.clear();
+
+                    
+                    //update the pointer in the current page, and write it to the file
+
+                    string newPointer = to_string(nextFreeOverflow);
+                    nextFreeOverflow += BLOCK_SIZE;
+
+                    int placementLength = (BLOCK_SIZE-(newPointer.length()+1));
+
+                    replaceString(newPointer, &pageDataBuffer, placementLength);
+
+                    //seek to the correct position in the file
+                    //Write contents to the file
+                    ofstream outFile;
+                    outFile.open("EmployeeIndex.dat", ios::in | ios::ate);
+                    outFile.seekp(currReadLocation);
+                    outFile.write(pageDataBuffer, BLOCK_SIZE);
+
+                    string filePointer = "{0000000000}";
+                    memset(pageDataBuffer, ' ', BLOCK_SIZE);
+                    replaceString(filePointer, &pageDataBuffer, 4084);
+
+                    outFile.seekp(stoi(newPointer));
+                    outFile.write(pageDataBuffer, BLOCK_SIZE);
+
+                    outFile.close();
+                    //update read location
+                    currReadLocation = stoi(newPointer);
+
+                    delete[] pageDataBuffer;
+                }else
+                {
+                    cout << "OVERFLOW WAS NON 0" << endl;
+                    //move past the current page
+                    currReadLocation = overflowPointer; 
+                }
+            }
+            cout << endl;
+            cout << endl;
         }
 
 
@@ -170,11 +284,14 @@ private:
         if((numRecords * 730) > (.7 * n * 4096)){
             n++;
             nextFreeBlock += BLOCK_SIZE;
-        }
+            if(pow(2,i) < n){
+                i++;
+            }
 
-        //check whether i needs to be increased to accomidate n
-        if(pow(2,i) < n){
-            i++;
+            for(int i = 0; i < n-1; i++)
+            {
+                
+            }
         }
 
         //perform any necessary reorganization
@@ -198,7 +315,6 @@ public:
         numRecords = 0;
         nextFreeBlock = 0;
         fName = indexFileName;
-
         // Create your EmployeeIndex file and write out the initial 4 buckets
         // make sure to account for the created buckets by incrementing nextFreeBlock appropriately
 
@@ -210,10 +326,10 @@ public:
         char* newPage = new char[4096];
         string filePointer = "{0000000000}";
         memset(newPage, ' ', 4096);
-        replaceString(filePointer, &newPage, 4083);
+        replaceString(filePointer, &newPage, 4084);
 
         //declare buffer and fill with spaces
-        for(int i = 0; i < 4; i++){
+        for(int i = 0; i < 256; i++){
             outFile.write(newPage, 4096);
         }
 
@@ -224,7 +340,7 @@ public:
 
     // Read csv file and add records to the index
     void createFromFile(string csvFName) {
-        
+
         //open the input file
         ifstream inputFile;
         inputFile.open(csvFName);
@@ -262,7 +378,7 @@ public:
                 Record myRecord(myVector);
     
                 //send the record to insertRecord
-                //insertRecord(myRecord);
+                insertRecord(myRecord);
                 
             }
             //if the getline is invalid, that means there is no new line, break out and close the input file
@@ -277,7 +393,7 @@ public:
     }
 
     // Given an ID, find the relevant record and print it
-    Record findRecordById(int id) {
-        
-    }
+    // Record findRecordById(int id) {
+    
+    // }
 };
