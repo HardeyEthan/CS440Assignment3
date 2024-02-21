@@ -280,7 +280,7 @@ private:
         if(binResult > blockDirectory.at(n-1)){
             //perform the bit flip
             int xorFella = pow(10, i-1);
-            binResult ^= xorFella;
+            binResult = binResult - xorFella;
         }
 
         //based on the binary result, determine which block to go to, j represents the block number
@@ -420,7 +420,7 @@ private:
                                 if(binResult > blockDirectory.at(n-1)){
                                     //perform the bit flip
                                     int xorFella = pow(10, i-1);
-                                    binResult ^= xorFella;
+                                    binResult = binResult - xorFella;
                                 }
 
                                 //check if it needs to be moved
@@ -589,9 +589,8 @@ private:
                                 if(binResult > blockDirectory.at(n-1)){
                                     //perform the bit flip
                                     int xorFella = pow(10, i-1);
-                                    binResult ^= xorFella;
+                                    binResult = binResult - xorFella;
                                 }
-
                                 //check if it needs to be moved
                                 if(binResult != blockDirectory.at(j)){
                                     //find the correct block
@@ -760,7 +759,7 @@ public:
         if(binResult > blockDirectory.at(n-1)){
             //perform the bit flip
             int xorFella = pow(10, i-1);
-            binResult ^= xorFella;
+            binResult = binResult - xorFella;
         }
 
         //based on the binary result, determine which block to go to, j represents the block number
@@ -837,7 +836,9 @@ public:
                             vector<string> myVector{id, name, bio, manid};
                             Record myRecord(myVector);
 
+                            cout << endl;
                             myRecord.print();
+                            cout << endl;
                         }
 
                     }
@@ -936,9 +937,9 @@ public:
                             //print
                             vector<string> myVector{id, name, bio, manid};
                             Record myRecord(myVector);
-
+                            cout << endl;
                             myRecord.print();
-
+                            cout << endl;
                         }
 
                     }
@@ -948,6 +949,5 @@ public:
             }
 
         }
-
     }
 };
